@@ -1,0 +1,1009 @@
+-----------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/lutfisun/Desktop/turkey_taylor_project/tsproject.log
+  log type:  text
+ opened on:   7 May 2021, 09:32:36
+
+. 
+. *-------------------------------------------------------------------------------
+. * Overnight Interest Rates
+. *-------------------------------------------------------------------------------
+. 
+. import delimited "data/cb_oni.csv"
+(encoding automatically selected: ISO-8859-1)
+(3 vars, 102 obs)
+
+. 
+. * data on overnight interest rates is missing for some most months and 
+. * not available quarterly (could not find) so, i will take averages of 
+. * observations within the same quarter
+. 
+. gen edate = date(date, "DM20Y")
+
+. format edate %d 
+
+. gen quarter = quarter(edate)
+
+. gen year = year(edate)
+
+. gen yq = yq(year, quarter)
+
+. 
+. egen oni_b = mean(oni_borrowing), by(yq)
+
+. egen oni_l = mean(oni_lending ), by(yq)
+
+. 
+. label variable edate "date"
+
+. label variable oni_b "borrowing"
+
+. label variable oni_l "lending"
+
+. 
+. graph twoway line oni_b oni_l edate, name(cb_oni)  ///
+>         title("CBRT Overnight Interest Rates") xline(15600 17000 18500 20700) ///
+>         text(58 15602  "implicit targeting" 58 17002 "inflation targeting", placement(east) size(.25cm) color(maroon)) ///
+>         text(58 18503  "wide corridor system" 58 20703 "not wide corridor", placement(east) size(.25cm) color(maroon))
+
+. 
+. graph export "figures/cb_oni.pdf", name(cb_oni) replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/cb_oni.pdf saved as PDF format
+
+. 
+. drop oni_borrowing oni_lending edate quarter year
+
+. duplicates drop yq, force
+
+Duplicates in terms of yq
+
+(49 observations deleted)
+
+. 
+. save "data/cb_oni.dta", replace
+file data/cb_oni.dta saved
+
+. 
+. *-------------------------------------------------------------------------------
+. * Inflation Target
+. *-------------------------------------------------------------------------------
+. 
+. clear
+
+. import delimited "data/cb_inflation.csv"
+(encoding automatically selected: ISO-8859-1)
+(3 vars, 19 obs)
+
+. 
+. graph twoway line target realization year, name(cb_inflation) xsc(r(2002 2021)noextend)  ///
+>         title("Year to Year % Changes in CPI") xline(2002 2006 2010 2016) ///
+>         text(38 2002.1  "implicit targeting" 38 2006.06 "inflation targeting", placement(east) size(.25cm) color(maroon)) /
+> //
+>         text(38 2010.1  "wide corridor system" 38 2016.1 "not wide corridor", placement(east) size(.25cm) color(maroon))
+
+. 
+. graph export "figures/cb_inflation.pdf", name(cb_inflation) replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/cb_inflation.pdf saved as PDF format
+
+. 
+. gen quarter = 1
+
+. gen yq = yq(year, quarter)
+
+. 
+. drop year quarter
+
+. duplicates drop yq, force
+
+Duplicates in terms of yq
+
+(0 observations are duplicates)
+
+. 
+. save "data/cb_inflation.dta", replace
+file data/cb_inflation.dta saved
+
+. 
+. *-------------------------------------------------------------------------------
+. * Merge All
+. *-------------------------------------------------------------------------------
+. 
+. clear
+
+. import delimited "data/evds_clean.csv", parselocale(en_US)
+(encoding automatically selected: ISO-8859-1)
+(33 vars, 77 obs)
+
+. 
+. gen yq = quarterly(date, "YQ")
+
+. format yq %tq
+
+. 
+. merge m:m yq using "data/cb_oni.dta", generate(merg1)
+(variable date was str7, now str8 to accommodate using data's values)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                            24
+        from master                        24  (merg1==1)
+        from using                          0  (merg1==2)
+
+    Matched                                53  (merg1==3)
+    -----------------------------------------
+
+. merge m:m yq using "data/cb_inflation.dta", generate(merg2)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                            58
+        from master                        58  (merg2==1)
+        from using                          0  (merg2==2)
+
+    Matched                                19  (merg2==3)
+    -----------------------------------------
+
+. 
+. drop merg*
+
+. duplicates drop yq, force
+
+Duplicates in terms of yq
+
+(0 observations are duplicates)
+
+. sort yq
+
+. tset yq
+
+Time variable: yq, 2002q1 to 2021q1
+        Delta: 1 quarter
+
+. 
+. ssc install fillmissing, replace
+checking fillmissing consistency and verifying not already installed...
+all files already exist and are up to date.
+
+. fillmissing oni_b oni_l target, with(previous)
+(24 real changes made)
+(24 real changes made)
+(58 real changes made)
+
+. 
+. save "data/merged_clean.dta", replace
+file data/merged_clean.dta saved
+
+. 
+. *-------------------------------------------------------------------------------
+. * Figures
+. *-------------------------------------------------------------------------------
+. 
+. * output
+. 
+. gen ln_gdp = log(gdp) 
+(1 missing value generated)
+
+. sort yq
+
+. gen d_ln_gdp = D.ln_gdp
+(2 missing values generated)
+
+. 
+. gen gdp_usd = gdp / usd_buy
+(1 missing value generated)
+
+. gen ln_gdp_usd = log(gdp_usd )
+(1 missing value generated)
+
+. 
+. label variable yq "Quarter"
+
+. label variable ln_gdp "log gdp try"
+
+. label variable ln_gdp_usd "log gdp usd"
+
+. 
+. graph twoway line ln_gdp ln_gdp_usd yq, name(gdp) title("Natural Log of Gross Domestic Product")
+
+. graph export "figures/gdp.pdf", name(gdp) replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/gdp.pdf saved as PDF format
+
+. 
+. gen quarter = quarter(dofq(yq))
+
+. gen period2 = _n * _n
+
+. reg ln_gdp_usd yq i.quarter
+
+      Source |       SS           df       MS      Number of obs   =        76
+-------------+----------------------------------   F(4, 71)        =     24.22
+       Model |  6.59028286         4  1.64757071   Prob > F        =    0.0000
+    Residual |  4.83015631        71  .068030371   R-squared       =    0.5771
+-------------+----------------------------------   Adj R-squared   =    0.5532
+       Total |  11.4204392        75  .152272522   Root MSE        =    .26083
+
+------------------------------------------------------------------------------
+  ln_gdp_usd | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+          yq |   .0128735   .0013656     9.43   0.000     .0101506    .0155964
+             |
+     quarter |
+          2  |   .0870021   .0846343     1.03   0.307    -.0817538     .255758
+          3  |   .1807683   .0846673     2.14   0.036     .0119465    .3495901
+          4  |   .1623658   .0847223     1.92   0.059    -.0065658    .3312973
+             |
+       _cons |     16.172   .2849366    56.76   0.000     15.60385    16.74014
+------------------------------------------------------------------------------
+
+. predict ln_gdp_usd_hat
+(option xb assumed; fitted values)
+
+. 
+. predict output_gap, resid
+(1 missing value generated)
+
+. gen output_gap_10 = 10*output_gap  
+(1 missing value generated)
+
+. label variable output_gap_10 "detrended gdp"
+
+. label variable oecd_cli_dtd "detrended cli"
+
+. 
+. graph twoway (line output_gap_10 oecd_cli_dtd yq), name(output_gap) title("Output Gap Using GDP and Composite Leading Indic
+> ator")
+
+. graph export "figures/output_gap.pdf", name(output_gap) replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/output_gap.pdf saved as PDF format
+
+. 
+. * inflation
+. 
+. gen ln_cpi95 = log(cpi95_all)
+
+. gen d_ln_cpi95 = D.ln_cpi95
+(1 missing value generated)
+
+. 
+. graph twoway line d_ln_cpi95 yq, name(d_ln_cpi95) title("Changes in Log Cost of Living 95")
+
+. graph export "figures/d_ln_cpi95.pdf", name(d_ln_cpi95) replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/d_ln_cpi95.pdf saved as PDF format
+
+. 
+. gen ln_cpi03 = log(cpi03_all)
+(4 missing values generated)
+
+. gen d_ln_cpi03 = D.ln_cpi03
+(5 missing values generated)
+
+. 
+. graph twoway line d_ln_cpi03 yq, name(d_ln_cpi03) title("Changes in Log Cost of Living 03")
+
+. graph export "figures/d_ln_cpi03.pdf", name(d_ln_cpi03) replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/d_ln_cpi03.pdf saved as PDF format
+
+. 
+. * forex
+. 
+. graph twoway line usd_buy yq, name(usd_fx_rates) title("USD to TRY Exchange Rates")
+
+. graph export "figures/usd_fx_rates.pdf", name(usd_fx_rates) replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/usd_fx_rates.pdf saved as PDF format
+
+. 
+. *-------------------------------------------------------------------------------
+. * Short Run SVAR Analysis (USD)
+. *-------------------------------------------------------------------------------
+. 
+. gen OG_01 = output_gap_10
+(1 missing value generated)
+
+. gen dP_01 = D.ln_cpi95
+(1 missing value generated)
+
+. gen oi_01 = oni_b
+
+. 
+. matrix A1 = (1,0,0 \ .,1,0 \ .,.,1)
+
+. matrix B1 = (.,0,0 \ 0,.,0 \ 0,0,.)
+
+. 
+. svar OG_01 dP_01 oi_01, lags(1/8) aeq(A1) beq(B1)
+Estimating short-run parameters
+
+Iteration 0:   log likelihood = -273.43466  
+Iteration 1:   log likelihood = -208.67164  
+Iteration 2:   log likelihood = -165.46667  
+Iteration 3:   log likelihood = -99.127458  
+Iteration 4:   log likelihood = -44.398827  
+Iteration 5:   log likelihood =  18.261316  
+Iteration 6:   log likelihood =  50.287164  
+Iteration 7:   log likelihood =  53.217948  
+Iteration 8:   log likelihood =  53.284543  
+Iteration 9:   log likelihood =  53.284576  
+Iteration 10:  log likelihood =  53.284576  
+
+Structural vector autoregression
+
+ ( 1)  [/A]1_1 = 1
+ ( 2)  [/A]1_2 = 0
+ ( 3)  [/A]1_3 = 0
+ ( 4)  [/A]2_2 = 1
+ ( 5)  [/A]2_3 = 0
+ ( 6)  [/A]3_3 = 1
+ ( 7)  [/B]1_2 = 0
+ ( 8)  [/B]1_3 = 0
+ ( 9)  [/B]2_1 = 0
+ (10)  [/B]2_3 = 0
+ (11)  [/B]3_1 = 0
+ (12)  [/B]3_2 = 0
+
+Sample: 2004q2 thru 2020q4                      Number of obs     =         67
+Exactly identified model                        Log likelihood    =   53.28458
+
+------------------------------------------------------------------------------
+             | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+/A           |
+         1_1 |          1  (constrained)
+         2_1 |   .0001979   .0016513     0.12   0.905    -.0030386    .0034343
+         3_1 |   .5453951   .2600578     2.10   0.036     .0356911    1.055099
+         1_2 |          0  (constrained)
+         2_2 |          1  (constrained)
+         3_2 |   -15.2285    19.2382    -0.79   0.429    -52.93468    22.47767
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |          1  (constrained)
+-------------+----------------------------------------------------------------
+/B           |
+         1_1 |   .6057953   .0523327    11.58   0.000      .503225    .7083656
+         2_1 |          0  (constrained)
+         3_1 |          0  (constrained)
+         1_2 |          0  (constrained)
+         2_2 |   .0081881   .0007073    11.58   0.000     .0068018    .0095745
+         3_2 |          0  (constrained)
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |   1.289397   .1113869    11.58   0.000     1.071083    1.507712
+------------------------------------------------------------------------------
+
+. irf create svar1, set(var_diff1, replace)
+(file var_diff1.irf created)
+(file var_diff1.irf now active)
+(file var_diff1.irf updated)
+
+. irf cgraph (svar1 OG_01 OG_01 sirf) (svar1 OG_01 dP_01 sirf) (svar1 OG_01 oi_01 sirf) ///
+>            (svar1 dP_01 OG_01 sirf) (svar1 dP_01 dP_01 sirf) (svar1 dP_01 oi_01 sirf) ///
+>                    (svar1 oi_01 OG_01 sirf) (svar1 oi_01 dP_01 sirf) (svar1 oi_01 oi_01 sirf), ///
+>                    title ("Irfs of VAR Model: dtd_gdp_usd d_ln_cpi95 oni", size(small))
+
+.                    
+. graph export "figures/svar1.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/svar1.pdf saved as PDF format
+
+. 
+. *
+. gen Y_02 = ln_gdp_usd
+(1 missing value generated)
+
+. gen P_03 = ln_cpi03
+(4 missing values generated)
+
+. gen i_02 = oni_b
+
+. 
+. svar Y_02 P_03 i_02, lags(1/8) aeq(A1) beq(B1)
+Estimating short-run parameters
+
+Iteration 0:   log likelihood =  -244.9873  
+Iteration 1:   log likelihood =  56.157266  
+Iteration 2:   log likelihood =  93.773884  
+Iteration 3:   log likelihood =  169.97841  
+Iteration 4:   log likelihood =   200.3706  
+Iteration 5:   log likelihood =  210.15577  
+Iteration 6:   log likelihood =  210.68964  
+Iteration 7:   log likelihood =  210.69173  
+Iteration 8:   log likelihood =  210.69173  
+
+Structural vector autoregression
+
+ ( 1)  [/A]1_1 = 1
+ ( 2)  [/A]1_2 = 0
+ ( 3)  [/A]1_3 = 0
+ ( 4)  [/A]2_2 = 1
+ ( 5)  [/A]2_3 = 0
+ ( 6)  [/A]3_3 = 1
+ ( 7)  [/B]1_2 = 0
+ ( 8)  [/B]1_3 = 0
+ ( 9)  [/B]2_1 = 0
+ (10)  [/B]2_3 = 0
+ (11)  [/B]3_1 = 0
+ (12)  [/B]3_2 = 0
+
+Sample: 2005q1 thru 2020q4                      Number of obs     =         64
+Exactly identified model                        Log likelihood    =   210.6917
+
+------------------------------------------------------------------------------
+             | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+/A           |
+         1_1 |          1  (constrained)
+         2_1 |   .0130836   .0126857     1.03   0.302    -.0117798    .0379471
+         3_1 |   2.927039   2.536879     1.15   0.249    -2.045152     7.89923
+         1_2 |          0  (constrained)
+         2_2 |          1  (constrained)
+         3_2 |  -69.70035   24.79231    -2.81   0.005    -118.2924   -21.10832
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |          1  (constrained)
+-------------+----------------------------------------------------------------
+/B           |
+         1_1 |   .0636479   .0056257    11.31   0.000     .0526217    .0746741
+         2_1 |          0  (constrained)
+         3_1 |          0  (constrained)
+         1_2 |          0  (constrained)
+         2_2 |   .0064593   .0005709    11.31   0.000     .0053403    .0075783
+         3_2 |          0  (constrained)
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |   1.281133   .1132373    11.31   0.000     1.059192    1.503074
+------------------------------------------------------------------------------
+
+. irf create svar2, set(var_ln2, replace)
+(file var_ln2.irf created)
+(file var_ln2.irf now active)
+(file var_ln2.irf updated)
+
+. irf cgraph (svar2 Y_02 Y_02 sirf) (svar2 Y_02 P_03 sirf) (svar2 Y_02 i_02 sirf) ///
+>            (svar2 P_03 Y_02 sirf) (svar2 P_03 P_03 sirf) (svar2 P_03 i_02 sirf) ///
+>                    (svar2 i_02 Y_02 sirf) (svar2 i_02 P_03 sirf) (svar2 i_02 i_02 sirf), ///
+>                    title ("Irfs of VAR Model: ln_gdp ln_cpi95 oni", size(small))
+
+. 
+. graph export "figures/svar2.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/svar2.pdf saved as PDF format
+
+. 
+. save "data/merged_clean_post.dta", replace
+file data/merged_clean_post.dta saved
+
+. 
+. 
+. *-------------------------------------------------------------------------------
+. * Short Run SVAR Analysis (TRY and PPI)
+. *-------------------------------------------------------------------------------
+. 
+. gen ln_gdp_try = log(gdp)
+(1 missing value generated)
+
+. reg ln_gdp_try yq i.quarter
+
+      Source |       SS           df       MS      Number of obs   =        76
+-------------+----------------------------------   F(4, 71)        =   2112.73
+       Model |  42.7518988         4  10.6879747   Prob > F        =    0.0000
+    Residual |  .359178596        71  .005058853   R-squared       =    0.9917
+-------------+----------------------------------   Adj R-squared   =    0.9912
+       Total |  43.1110774        75  .574814365   Root MSE        =    .07113
+
+------------------------------------------------------------------------------
+  ln_gdp_try | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+          yq |   .0338495   .0003724    90.90   0.000      .033107     .034592
+             |
+     quarter |
+          2  |   .0911306   .0230792     3.95   0.000      .045112    .1371492
+          3  |   .1892556   .0230882     8.20   0.000      .143219    .2352922
+          4  |    .177046   .0231032     7.66   0.000     .1309795    .2231125
+             |
+       _cons |     12.608   .0777003   162.26   0.000     12.45307    12.76293
+------------------------------------------------------------------------------
+
+. predict og_try, resid
+(1 missing value generated)
+
+. 
+. gen ln_ppi03 = log(ppi_03)
+
+. 
+. gen OG_02 = og_try
+(1 missing value generated)
+
+. gen dP_02 = D.ln_ppi03
+(1 missing value generated)
+
+. gen ex_02 = D.usd_buy
+(1 missing value generated)
+
+. gen oi_02 = oni_l
+
+. 
+. matrix A2 = (1,0,0,0 \ .,1,0,0 \ .,.,1,0 \ .,.,.,1)
+
+. matrix B2 = (.,0,0,0 \ 0,.,0,0 \ 0,0,.,0 \ 0,0,0,.)
+
+. 
+. svar OG_02 dP_02 ex_02 oi_02, lags(1/8) aeq(A2) beq(B2)
+Estimating short-run parameters
+
+Iteration 0:   log likelihood = -344.35121  
+Iteration 1:   log likelihood =  115.01177  
+Iteration 2:   log likelihood =  174.14889  
+Iteration 3:   log likelihood =  244.33341  
+Iteration 4:   log likelihood =  292.91563  
+Iteration 5:   log likelihood =  319.43919  
+Iteration 6:   log likelihood =  324.52705  
+Iteration 7:   log likelihood =  324.62305  
+Iteration 8:   log likelihood =  324.62313  
+Iteration 9:   log likelihood =  324.62313  
+
+Structural vector autoregression
+
+ ( 1)  [/A]1_1 = 1
+ ( 2)  [/A]1_2 = 0
+ ( 3)  [/A]1_3 = 0
+ ( 4)  [/A]1_4 = 0
+ ( 5)  [/A]2_2 = 1
+ ( 6)  [/A]2_3 = 0
+ ( 7)  [/A]2_4 = 0
+ ( 8)  [/A]3_3 = 1
+ ( 9)  [/A]3_4 = 0
+ (10)  [/A]4_4 = 1
+ (11)  [/B]1_2 = 0
+ (12)  [/B]1_3 = 0
+ (13)  [/B]1_4 = 0
+ (14)  [/B]2_1 = 0
+ (15)  [/B]2_3 = 0
+ (16)  [/B]2_4 = 0
+ (17)  [/B]3_1 = 0
+ (18)  [/B]3_2 = 0
+ (19)  [/B]3_4 = 0
+ (20)  [/B]4_1 = 0
+ (21)  [/B]4_2 = 0
+ (22)  [/B]4_3 = 0
+
+Sample: 2004q2 thru 2020q4                      Number of obs     =         67
+Exactly identified model                        Log likelihood    =   324.6231
+
+------------------------------------------------------------------------------
+             | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+/A           |
+         1_1 |          1  (constrained)
+         2_1 |  -.4163699   .0808875    -5.15   0.000    -.5749064   -.2578334
+         3_1 |   1.170805   .5611628     2.09   0.037     .0709463    2.270664
+         4_1 |  -17.11518   4.867562    -3.52   0.000    -26.65543   -7.574939
+         1_2 |          0  (constrained)
+         2_2 |          1  (constrained)
+         3_2 |  -4.741281   .7174786    -6.61   0.000    -6.147514   -3.335049
+         4_2 |  -30.97635   7.750654    -4.00   0.000    -46.16735   -15.78534
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |          1  (constrained)
+         4_3 |  -2.727337   1.026872    -2.66   0.008     -4.73997   -.7147047
+         1_4 |          0  (constrained)
+         2_4 |          0  (constrained)
+         3_4 |          0  (constrained)
+         4_4 |          1  (constrained)
+-------------+----------------------------------------------------------------
+/B           |
+         1_1 |   .0237936   .0020555    11.58   0.000      .019765    .0278222
+         2_1 |          0  (constrained)
+         3_1 |          0  (constrained)
+         4_1 |          0  (constrained)
+         1_2 |          0  (constrained)
+         2_2 |   .0157536   .0013609    11.58   0.000     .0130862    .0184209
+         3_2 |          0  (constrained)
+         4_2 |          0  (constrained)
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |   .0925177   .0079923    11.58   0.000     .0768531    .1081823
+         4_3 |          0  (constrained)
+         1_4 |          0  (constrained)
+         2_4 |          0  (constrained)
+         3_4 |          0  (constrained)
+         4_4 |     .77764   .0671779    11.58   0.000     .6459738    .9093062
+------------------------------------------------------------------------------
+
+. irf create svar4, set(var_diff2, replace)
+(file var_diff2.irf created)
+(file var_diff2.irf now active)
+(file var_diff2.irf updated)
+
+. irf cgraph (svar4 OG_02 OG_02 sirf) (svar4 OG_02 dP_02 sirf) (svar4 OG_02 ex_02 sirf) (svar4 OG_02 oi_02 sirf) ///
+>            (svar4 dP_02 OG_02 sirf) (svar4 dP_02 dP_02 sirf) (svar4 dP_02 ex_02 sirf) (svar4 dP_02 oi_02 sirf) ///
+>                    (svar4 ex_02 OG_02 sirf) (svar4 ex_02 dP_02 sirf) (svar4 ex_02 ex_02 sirf) (svar4 ex_02 oi_02 sirf) ///
+>                    (svar4 oi_02 OG_02 sirf) (svar4 oi_02 dP_02 sirf) (svar4 oi_02 ex_02 sirf) (svar4 oi_02 oi_02 sirf), ///
+>                    title ("Irfs of VAR Model: dtd_gdptry dln_ppi03 d_usdx oni_lending", size(small))
+
+.                    
+. graph export "figures/svar4_try.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/svar4_try.pdf saved as PDF format
+
+. 
+. *
+. gen ln_usd = log(usd_buy)
+
+. 
+. gen OG_03 = ln_gdp_try
+(1 missing value generated)
+
+. gen dP_03 = ln_ppi03
+
+. gen ex_03 = ln_usd
+
+. gen oi_03 = oni_l
+
+. 
+. svar OG_03 dP_03 ex_03 oi_03, lags(1/8) aeq(A2) beq(B2)
+Estimating short-run parameters
+
+Iteration 0:   log likelihood = -349.15812  
+Iteration 1:   log likelihood =  178.83013  
+Iteration 2:   log likelihood =  286.25993  
+Iteration 3:   log likelihood =  331.84776  
+Iteration 4:   log likelihood =  371.19418  
+Iteration 5:   log likelihood =  378.43245  
+Iteration 6:   log likelihood =  378.97423  
+Iteration 7:   log likelihood =  378.97689  
+Iteration 8:   log likelihood =  378.97689  
+
+Structural vector autoregression
+
+ ( 1)  [/A]1_1 = 1
+ ( 2)  [/A]1_2 = 0
+ ( 3)  [/A]1_3 = 0
+ ( 4)  [/A]1_4 = 0
+ ( 5)  [/A]2_2 = 1
+ ( 6)  [/A]2_3 = 0
+ ( 7)  [/A]2_4 = 0
+ ( 8)  [/A]3_3 = 1
+ ( 9)  [/A]3_4 = 0
+ (10)  [/A]4_4 = 1
+ (11)  [/B]1_2 = 0
+ (12)  [/B]1_3 = 0
+ (13)  [/B]1_4 = 0
+ (14)  [/B]2_1 = 0
+ (15)  [/B]2_3 = 0
+ (16)  [/B]2_4 = 0
+ (17)  [/B]3_1 = 0
+ (18)  [/B]3_2 = 0
+ (19)  [/B]3_4 = 0
+ (20)  [/B]4_1 = 0
+ (21)  [/B]4_2 = 0
+ (22)  [/B]4_3 = 0
+
+Sample: 2004q1 thru 2020q4                      Number of obs     =         68
+Exactly identified model                        Log likelihood    =   378.9769
+
+------------------------------------------------------------------------------
+             | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+/A           |
+         1_1 |          1  (constrained)
+         2_1 |  -.3681645   .0643445    -5.72   0.000    -.4942774   -.2420516
+         3_1 |   .3115148   .1781326     1.75   0.080    -.0376187    .6606483
+         4_1 |  -6.739943   4.775533    -1.41   0.158    -16.09982     2.61993
+         1_2 |          0  (constrained)
+         2_2 |          1  (constrained)
+         3_2 |  -.9382914   .2758252    -3.40   0.001    -1.478899    -.397684
+         4_2 |  -40.65556   7.825016    -5.20   0.000    -55.99231   -25.31881
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |          1  (constrained)
+         4_3 |  -10.62584   3.180323    -3.34   0.001    -16.85916   -4.392522
+         1_4 |          0  (constrained)
+         2_4 |          0  (constrained)
+         3_4 |          0  (constrained)
+         4_4 |          1  (constrained)
+-------------+----------------------------------------------------------------
+/B           |
+         1_1 |   .0283114   .0024277    11.66   0.000     .0235532    .0330696
+         2_1 |          0  (constrained)
+         3_1 |          0  (constrained)
+         4_1 |          0  (constrained)
+         1_2 |          0  (constrained)
+         2_2 |    .015022   .0012881    11.66   0.000     .0124973    .0175467
+         3_2 |          0  (constrained)
+         4_2 |          0  (constrained)
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |   .0341677   .0029299    11.66   0.000     .0284253    .0399101
+         4_3 |          0  (constrained)
+         1_4 |          0  (constrained)
+         2_4 |          0  (constrained)
+         3_4 |          0  (constrained)
+         4_4 |   .8960688   .0768373    11.66   0.000     .7454705    1.046667
+------------------------------------------------------------------------------
+
+. irf create svar4, set(var_diff2, replace)
+(file var_diff2.irf created)
+(file var_diff2.irf now active)
+(file var_diff2.irf updated)
+
+. irf cgraph (svar4 OG_03 OG_03 sirf) (svar4 OG_03 dP_03 sirf) (svar4 OG_03 ex_03 sirf) (svar4 OG_03 oi_03 sirf) ///
+>            (svar4 dP_03 OG_03 sirf) (svar4 dP_03 dP_03 sirf) (svar4 dP_03 ex_03 sirf) (svar4 dP_03 oi_03 sirf) ///
+>                    (svar4 ex_03 OG_03 sirf) (svar4 ex_03 dP_03 sirf) (svar4 ex_03 ex_03 sirf) (svar4 ex_03 oi_03 sirf) ///
+>                    (svar4 oi_03 OG_03 sirf) (svar4 oi_03 dP_03 sirf) (svar4 oi_03 ex_03 sirf) (svar4 oi_03 oi_03 sirf), ///
+>                    title ("Irfs of VAR Model: lngdptry lnppi03 lnusdx oni_lending", size(small))
+
+.                    
+. 
+. graph export "figures/svar4_try2.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/svar4_try2.pdf saved as PDF format
+
+. 
+. save "data/merged_clean_post.dta", replace
+file data/merged_clean_post.dta saved
+
+. 
+. /*
+> *-------------------------------------------------------------------------------
+> * Long Run SVAR Analysis
+> *-------------------------------------------------------------------------------
+> 
+> *Assume 1) in the long run, demand shocks (inflation shocks) and policy shocks have no effect on the output. 
+> *And the policy shocks have no effect on the inflation level (inflation rate is the real variable).
+> 
+> matrix C = (.,0,0 \ .,.,0 \ .,.,.) //no 1's on the diagonal
+> 
+> svar d_Y_01 d_P_01 i_01, lags(1/12) lreq(C) 
+> irf create lr, set(lrirf1) step(40) replace
+> *view IRF (not cumulative )
+> irf graph sirf, yline(0,lcolor(black)) xlabel(0(4)40) byopts(yrescale) set(lrirf1)
+> graph export "figures/lvar_irf.pdf", replace
+> 
+> *create cumulative irf graphs for responses of output variable 
+> use lrirf1.irf, clear
+> sort irfname impulse response step
+> gen csirf = sirf
+> by irfname impulse: replace csirf = sum(sirf) if response== "d_Y_01"
+> order irfname impulse response step sirf csirf
+> save lrirf3.irf, replace
+> 
+> irf set lrirf3.irf
+> irf graph csirf, yline(0,lcolor(black)) noci xlabel(0(4)40) byopts(yrescale)
+> 
+> *create cumulative irf graphs for responses of all variables
+> by irfname impulse: replace csirf = sum(sirf) if response != "d_Y_01"
+> save lrirf3.irf, replace
+> 
+> irf set lrirf3.irf
+> irf graph csirf, yline(0,lcolor(black)) noci xlabel(0(4)40) byopts(yrescale)
+> graph export "figures/lvar_cumulative.pdf", replace
+> 
+> *-------------------------------------------------------------------------------
+> 
+> use "data/merged_clean_post.dta", clear
+> 
+> 
+> /* a. Test for a unit root in r1 and r3 series using several augmented Dickey Fuller tests. 
+> gen t = _n
+> tset t
+> graph twoway line r1 r3 t
+> 
+> dfuller r1
+> dfuller r1, trend
+> dfuller r1, drift
+> */
+> 
+> 
+> log close
+
+end of do-file
+
+. do "/var/folders/f8/w4npxhxs30v0l9l498c7mfq40000gn/T//SD19694.000000"
+
+. matrix C = (.,0,0,0 \ .,.,0,0 \ .,.,.,0 \ .,.,.,.) //no 1's on the diagonal
+
+. 
+. svar OG_03 dP_03 ex_03 oi_03, lags(1/12) lreq(C) 
+Estimating long-run parameters
+
+Iteration 0:   log likelihood = -37.976715  
+Iteration 1:   log likelihood =   308.1973  
+Iteration 2:   log likelihood =  441.64524  
+Iteration 3:   log likelihood =   499.0962  
+Iteration 4:   log likelihood =  520.35105  
+Iteration 5:   log likelihood =   521.7302  
+Iteration 6:   log likelihood =  521.75071  
+Iteration 7:   log likelihood =  521.75071  
+
+Structural vector autoregression
+
+ ( 1)  [/C]1_2 = 0
+ ( 2)  [/C]1_3 = 0
+ ( 3)  [/C]1_4 = 0
+ ( 4)  [/C]2_3 = 0
+ ( 5)  [/C]2_4 = 0
+ ( 6)  [/C]3_4 = 0
+
+Sample: 2005q1 thru 2020q4                      Number of obs     =         64
+Exactly identified model                        Log likelihood    =   521.7507
+
+------------------------------------------------------------------------------
+             | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+/C           |
+         1_1 |   .2093371    .018503    11.31   0.000      .173072    .2456022
+         2_1 |   .1463851   .0131489    11.13   0.000     .1206136    .1721565
+         3_1 |   .2370466   .0230443    10.29   0.000     .1918806    .2822126
+         4_1 |   1.095116   .2524409     4.34   0.000     .6003413    1.589891
+         1_2 |          0  (constrained)
+         2_2 |   .0187337   .0016558    11.31   0.000     .0154883    .0219791
+         3_2 |   .0090024    .009561     0.94   0.346    -.0097368    .0277417
+         4_2 |  -.9587243   .2172007    -4.41   0.000     -1.38443   -.5330187
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |   .0762229   .0067372    11.31   0.000     .0630182    .0894276
+         4_3 |    1.53478   .1469439    10.44   0.000     1.246776    1.822785
+         1_4 |          0  (constrained)
+         2_4 |          0  (constrained)
+         3_4 |          0  (constrained)
+         4_4 |   .4518251   .0399361    11.31   0.000     .3735518    .5300983
+------------------------------------------------------------------------------
+
+. irf create lr, set(lrirf1) step(40) replace
+(file lrirf1.irf now active)
+(file lrirf1.irf updated)
+
+. *view IRF (not cumulative )
+. irf graph sirf, yline(0,lcolor(black)) xlabel(0(4)40) byopts(yrescale) set(lrirf1)
+(file lrirf1.irf now active)
+standard errors from all selected results are missing, cannot compute confidence intervals for the chosen statistics
+
+. graph export "figures/lvar_irf2.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/lvar_irf2.pdf saved as PDF format
+
+. 
+. *create cumulative irf graphs for responses of output variable 
+. use lrirf1.irf, clear
+
+. sort irfname impulse response step
+
+. gen csirf = sirf
+
+. by irfname impulse: replace csirf = sum(sirf) if response== "OG_03"
+(160 real changes made)
+
+. order irfname impulse response step sirf csirf
+
+. save lrirf3.irf, replace
+file lrirf3.irf saved as .dta format
+
+. 
+. irf set lrirf3.irf
+(file lrirf3.irf now active)
+
+. irf graph csirf, yline(0,lcolor(black)) noci xlabel(0(4)40) byopts(yrescale)
+
+. 
+. *create cumulative irf graphs for responses of all variables
+. by irfname impulse: replace csirf = sum(sirf) if response != "OG_03"
+(488 real changes made)
+
+. save lrirf3.irf, replace
+file lrirf3.irf saved as .dta format
+
+. 
+. irf set lrirf3.irf
+(file lrirf3.irf now active)
+
+. irf graph csirf, yline(0,lcolor(black)) noci xlabel(0(4)40) byopts(yrescale)
+
+. graph export "figures/lvar_cumulative2.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/lvar_cumulative2.pdf saved as PDF format
+
+. 
+end of do-file
+
+. use "data/merged_clean_post.dta", clear
+
+. 
+. do "/var/folders/f8/w4npxhxs30v0l9l498c7mfq40000gn/T//SD19694.000000"
+
+. matrix C = (.,0,0,0 \ .,.,0,0 \ .,.,.,0 \ .,.,.,.) //no 1's on the diagonal
+
+. 
+. svar OG_02 dP_03 ex_03 oi_03, lags(1/12) lreq(C) 
+Estimating long-run parameters
+
+Iteration 0:   log likelihood = -241.98254  
+Iteration 1:   log likelihood =  232.19361  
+Iteration 2:   log likelihood =  341.51637  
+Iteration 3:   log likelihood =  438.93098  
+Iteration 4:   log likelihood =   503.3889  
+Iteration 5:   log likelihood =   527.7547  
+Iteration 6:   log likelihood =  533.03434  
+Iteration 7:   log likelihood =  533.08105  
+Iteration 8:   log likelihood =  533.08107  
+
+Structural vector autoregression
+
+ ( 1)  [/C]1_2 = 0
+ ( 2)  [/C]1_3 = 0
+ ( 3)  [/C]1_4 = 0
+ ( 4)  [/C]2_3 = 0
+ ( 5)  [/C]2_4 = 0
+ ( 6)  [/C]3_4 = 0
+
+Sample: 2005q1 thru 2020q4                      Number of obs     =         64
+Exactly identified model                        Log likelihood    =   533.0811
+
+------------------------------------------------------------------------------
+             | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+/C           |
+         1_1 |     .03629   .0032076    11.31   0.000     .0300032    .0425768
+         2_1 |   .0814482   .0118561     6.87   0.000     .0582106    .1046858
+         3_1 |   .2203608    .021348    10.32   0.000     .1785195    .2622022
+         4_1 |   2.926789   .3007969     9.73   0.000     2.337238     3.51634
+         1_2 |          0  (constrained)
+         2_2 |   .0753621   .0066611    11.31   0.000     .0623065    .0884177
+         3_2 |   .0670315   .0064241    10.43   0.000     .0544406    .0796225
+         4_2 |  -.3823891   .1497124    -2.55   0.011      -.67582   -.0889581
+         1_3 |          0  (constrained)
+         2_3 |          0  (constrained)
+         3_3 |   .0198645   .0017558    11.31   0.000     .0164232    .0233058
+         4_3 |   1.049473    .112547     9.32   0.000     .8288845    1.270061
+         1_4 |          0  (constrained)
+         2_4 |          0  (constrained)
+         3_4 |          0  (constrained)
+         4_4 |   .5098826   .0450677    11.31   0.000     .4215516    .5982137
+------------------------------------------------------------------------------
+
+. irf create lr, set(lrirf1) step(40) replace
+(file lrirf1.irf now active)
+(file lrirf1.irf updated)
+
+. *view IRF (not cumulative )
+. irf graph sirf, yline(0,lcolor(black)) xlabel(0(4)40) byopts(yrescale) set(lrirf1)
+(file lrirf1.irf now active)
+standard errors from all selected results are missing, cannot compute confidence intervals for the chosen statistics
+
+. graph export "figures/lvar_irf3.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/lvar_irf3.pdf saved as PDF format
+
+. 
+. *create cumulative irf graphs for responses of output variable 
+. use lrirf1.irf, clear
+
+. sort irfname impulse response step
+
+. gen csirf = sirf
+
+. by irfname impulse: replace csirf = sum(sirf) if response== "OG_02"
+(160 real changes made)
+
+. order irfname impulse response step sirf csirf
+
+. save lrirf3.irf, replace
+file lrirf3.irf saved as .dta format
+
+. 
+. irf set lrirf3.irf
+(file lrirf3.irf now active)
+
+. irf graph csirf, yline(0,lcolor(black)) noci xlabel(0(4)40) byopts(yrescale)
+
+. 
+. *create cumulative irf graphs for responses of all variables
+. by irfname impulse: replace csirf = sum(sirf) if response != "OG_02"
+(488 real changes made)
+
+. save lrirf3.irf, replace
+file lrirf3.irf saved as .dta format
+
+. 
+. irf set lrirf3.irf
+(file lrirf3.irf now active)
+
+. irf graph csirf, yline(0,lcolor(black)) noci xlabel(0(4)40) byopts(yrescale)
+
+. graph export "figures/lvar_cumulative3.pdf", replace
+file /Users/lutfisun/Desktop/turkey_taylor_project/figures/lvar_cumulative3.pdf saved as PDF format
+
+. 
+end of do-file
+

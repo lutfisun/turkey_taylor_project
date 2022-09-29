@@ -1,0 +1,78 @@
+\ProvidesPackage{fun3style}[2019/07/30 Style File for Fun 3 (electrostatics and magnetostatics)]
+
+% To customize page margins, use geometry
+\RequirePackage{geometry}
+	\geometry{top=1.5in,left=1in, right=1in, bottom = 1.5in}
+
+% Add the following to all of our image names.  Now we can put all of our images in a separate file (so it's easier and cleaner).  I've already included two images of script-r.
+    \RequirePackage{graphicx}
+    \graphicspath{{Images/}}
+    % Definitions for script-r
+    \def\rcurs{{\mbox{$\resizebox{.09in}{.08in}{\includegraphics[trim= 1em 0 14em 0,clip]{ScriptR}}$}}}
+    \def\brcurs{{\mbox{$\resizebox{.09in}{.08in}{\includegraphics[trim= 1em 0 14em 0,clip]{BoldR}}$}}}
+    \def\hrcurs{{\mbox{$\hat \brcurs$}}}    
+
+% Control and customize lists
+%\RequirePackage[shortlabels]{enumitem}
+    	
+%% "physics" packages
+% Physics symbols: using options to make vectors bold and load the SIunitx package
+	\RequirePackage{physics, siunitx}
+		
+    % SI units set-up
+	    \sisetup{separate-uncertainty = true}
+    	\sisetup{multi-part-units = single}
+    	\sisetup{load-configurations = abbreviations}
+    	\sisetup{unitspace = { } \cdot { } }
+    	\sisetup{per-mode = symbol}
+    % Next I define some additional units for time
+		\DeclareSIUnit\y{y}
+		\DeclareSIUnit\year{y}
+		\DeclareSIUnit\min{\minute}
+		\DeclareSIUnit\h{h}
+		\DeclareSIUnit\hour{h}
+
+	% Here I define commands to make vectors look the way I want them to (this is my personal preference for vectors)
+		\renewcommand{\vector}[1]{\overrightarrow{#1}}
+		\renewcommand{\vec}[1]{\boldsymbol{#1}}
+		\newcommand{\unitvec}[1]{\,\boldsymbol{\hat{#1}}}
+		
+	% \dd command is always too close the previous term, so I'm going to add a space in front of it
+	    %\renewcommand{\dd}{\,\dd}
+		
+	% \ensuremath allows me to use these commands outside the math environment and LaTeX will automatically put them in a math environment, I going to define some useful shortcuts for unitvectors that I can use in either the math environment or the regular text environment
+		\newcommand{\unitx}{\ensuremath{\unitvec{x}}}
+		\newcommand{\unity}{\ensuremath{\unitvec{y}}}
+		\newcommand{\unitz}{\ensuremath{\unitvec{z}}}
+		\newcommand{\uniti}{\ensuremath{\unitvec{\imath}}}
+		\newcommand{\unitj}{\ensuremath{\unitvec{\jmath}}}
+		\newcommand{\unitk}{\ensuremath{\unitvec{k}}}
+		\newcommand{\unitr}{\ensuremath{\unitvec{r}}}
+		\newcommand{\unitn}{\ensuremath{\unitvec{n}}}
+		\newcommand{\unitphi}{\ensuremath{\unitvec{\phi}}}
+		\newcommand{\unittheta}{\ensuremath{\unitvec{\theta}}}
+		\newcommand{\unitrho}{\ensuremath{\unitvec{\rho}}}
+	
+%% "math" packages/set-up
+	\RequirePackage[tbtags]{mathtools}
+
+%% load tabu package (tabu is a powerful package to make tables)
+\RequirePackage{tabu,multirow,longtable}
+	
+% makes sure that url's are formatted properly
+\RequirePackage{url}
+	
+% hyperref creates useful links within the document
+\RequirePackage[hidelinks]{hyperref}
+    \hypersetup{
+    	colorlinks=true,
+        linkcolor=black
+    }
+% Clever references that figures out references --- must be last package regarding numbering/referencing to be loaded
+\RequirePackage{cleveref}
+	\crefname{subsection}{subsection}{subsections}
+    \crefname{subsubsection}{subsubsection}{subsubsections}
+
+
+
+\endinput
